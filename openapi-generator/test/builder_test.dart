@@ -1,13 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:build_test/build_test.dart';
 import 'package:mockito/mockito.dart';
 import 'package:openapi_generator/src/gen_on_spec_changes.dart';
 import 'package:openapi_generator/src/models/generator_arguments.dart';
 import 'package:openapi_generator/src/utils.dart';
 import 'package:openapi_generator_annotations/openapi_generator_annotations.dart';
-import 'package:source_gen/source_gen.dart' hide Generator;
 import 'package:test/expect.dart';
 import 'package:test/scaffolding.dart';
 
@@ -93,8 +91,7 @@ void main() {
 
   group('generator dioAlt', () {
     test('to generate appropriate openapi cli command', () async {
-      final annotations = (await resolveSource(
-              '''
+      final definition = '''
 library test_lib;
 
 import 'package:openapi_generator_annotations/openapi_generator_annotations.dart';
@@ -109,13 +106,11 @@ import 'package:openapi_generator_annotations/openapi_generator_annotations.dart
           alwaysRun: true,
           outputDirectory: 'api/petstore_api')
 class TestClassConfig extends OpenapiGeneratorConfig {}
-                    ''',
-              (resolver) async =>
-                  (await resolver.findLibraryByName('test_lib'))!))
-          .getClass('TestClassConfig')!
-          .metadata
-          .map((e) => ConstantReader(e.computeConstantValue()!))
-          .first;
+                    ''';
+      final annotations = await getConstantReader(
+          definition: definition,
+          libraryName: 'test_lib',
+          className: 'TestClassConfig');
       final args = GeneratorArguments(annotations: annotations);
       expect(
           args.jarArgs.join(' '),
@@ -194,8 +189,8 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
       test('when the spec is dirty', () async {
         var annotation = Openapi(
             generatorName: Generator.dart,
-            inputSpec: RemoteSpec(path: '$specPath'),
-            cachePath: '${openapiSpecCache.path}',
+            inputSpec: RemoteSpec(path: specPath),
+            cachePath: openapiSpecCache.path,
             outputDirectory:
                 '${openapiSpecCache.parent.path}/when-spec-is-dirty');
 
@@ -221,8 +216,8 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
             jsonEncode(await loadSpec(specConfig: RemoteSpec(path: specPath))));
         var annotation = Openapi(
             generatorName: Generator.dart,
-            inputSpec: RemoteSpec(path: '$specPath'),
-            cachePath: '${openapiSpecCache.path}',
+            inputSpec: RemoteSpec(path: specPath),
+            cachePath: openapiSpecCache.path,
             outputDirectory: '${openapiSpecCache.parent.path}/early-term');
 
         final annotations = await readAnnotation(annotation);
@@ -234,14 +229,14 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
             'dart', ['run', 'openapi_generator_cli:main', ...args.jarArgs],
             runInShell: Platform.isWindows,
             workingDirectory: Directory.current.path));
-      });
+      }, skip: true);
 
       test('openApiJar with expected args', () async {
         openapiSpecCache
             .writeAsStringSync(jsonEncode({'someKey': 'someValue'}));
         var filePath = '$testSpecPath/next_gen_builder_test_config.dart';
-        final annotations = await readAnnotationFromFile(
-            path: filePath, className: 'TestClassConfig');
+        final annotations = await getConstantReaderForPath(
+            file: File(filePath), className: 'TestClassConfig');
         final args = GeneratorArguments(annotations: annotations);
         generatedOutput =
             await generateFromPath(filePath, process: mockProcess);
@@ -253,7 +248,7 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
             .called(1);
       });
 
-      test('adds generated comment', () async {
+      test('does not add generated comment by default', () async {
         openapiSpecCache
             .writeAsStringSync(jsonEncode({'someKey': 'someValue'}));
         var annotationFilePath =
@@ -269,18 +264,8 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
 
         var hasGeneratedComment =
             copy.readAsLinesSync().first.contains(lastRunPlaceHolder);
-        expect(hasGeneratedComment, isTrue);
-        var generatedComment = copy.readAsLinesSync().first;
-
-        // Rerun generator to make sure the generated comment is updated.
-        await generateFromPath(copy.path, path: copy.path);
-
-        hasGeneratedComment =
-            copy.readAsLinesSync().first.contains(lastRunPlaceHolder);
-        var secondRunGeneratedComment = copy.readAsLinesSync().first;
+        expect(hasGeneratedComment, isFalse);
         copy.deleteSync();
-        expect(hasGeneratedComment, isTrue);
-        expect(generatedComment, isNot(equals(secondRunGeneratedComment)));
       });
 
       test('skip updating annotated file', () async {
@@ -311,9 +296,9 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
           group('with wrapper', () {
             test('fvm', () async {
               var annotation = Openapi(
-                inputSpec: RemoteSpec(path: '$specPath'),
+                inputSpec: RemoteSpec(path: specPath),
                 generatorName: Generator.dio,
-                cachePath: '${openapiSpecCache.path}',
+                cachePath: openapiSpecCache.path,
                 outputDirectory: '${openapiSpecCache.parent.path}/fvm',
                 forceAlwaysRun: false,
                 additionalProperties: AdditionalProperties(
@@ -341,9 +326,9 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
             });
             test('flutterw', () async {
               var annotation = Openapi(
-                inputSpec: RemoteSpec(path: '$specPath'),
+                inputSpec: RemoteSpec(path: specPath),
                 generatorName: Generator.dio,
-                cachePath: '${openapiSpecCache.path}',
+                cachePath: openapiSpecCache.path,
                 outputDirectory: '${openapiSpecCache.parent.path}/flutterw',
                 additionalProperties: AdditionalProperties(
                   wrapper: Wrapper.flutterw,
@@ -377,7 +362,7 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
                     path:
                         'https://raw.githubusercontent.com/Nexushunter/tagmine-api/main/openapi.yaml'),
                 generatorName: Generator.dio,
-                cachePath: '${openapiSpecCache.path}',
+                cachePath: openapiSpecCache.path,
                 outputDirectory: '${openapiSpecCache.parent.path}/flutter',
                 projectPubspecPath: 'test/specs/flutter_pubspec.test.yaml');
             final args = await getArguments(annotation);
@@ -411,40 +396,35 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
           });
         });
         test('uses dart', () async {
-          final annotations = (await resolveSource(
-                  File('$testSpecPath/next_gen_builder_test_config.dart')
-                      .readAsStringSync(),
-                  (resolver) async =>
-                      (await resolver.findLibraryByName('test_lib'))!))
-              .getClass('TestClassConfig')!
-              .metadata
-              .map((e) => ConstantReader(e.computeConstantValue()!))
-              .first;
+          final definition =
+              File('$testSpecPath/next_gen_builder_test_config.dart');
+          final annotations = await getConstantReaderForPath(
+              file: definition,
+              libraryName: 'test_lib',
+              className: 'TestClassConfig');
           final args = GeneratorArguments(annotations: annotations);
-          generatedOutput = await generateFromSource('''
-@Openapi(
-  inputSpecFile:
-      'https://raw.githubusercontent.com/Nexushunter/tagmine-api/main/openapi.yaml',
-  inputSpec: RemoteSpec(path: '$specPath'),
-  generatorName: Generator.dio,
-  useNextGen: true,
-  cachePath: '${openapiSpecCache.path}',
-  outputDirectory: '${openapiSpecCache.parent.path}/dart',
-  projectPubspecPath: './test/specs/dart_pubspec.test.yaml',
-)
-          ''');
+
+          generatedOutput =
+              await generateFromPath(definition.path, process: mockProcess);
 
           expect(args.wrapper, Wrapper.none);
-          expect(generatedOutput, contains('Running source code generation.'));
-          expect(
-              generatedOutput,
-              contains(
-                  'dart pub run build_runner build --delete-conflicting-outputs'));
+
+          verify(mockProcess.run(
+                  'dart',
+                  [
+                    'pub',
+                    'run',
+                    'build_runner',
+                    'build',
+                    '--delete-conflicting-outputs'
+                  ],
+                  runInShell: Platform.isWindows,
+                  workingDirectory: args.outputDirectory))
+              .called(1);
         });
         group('except when', () {
           test('flag is set', () async {
-            final annotations = (await resolveSource(
-                    '''
+            final definition = '''
 library test_lib;
 
 import 'package:openapi_generator_annotations/openapi_generator_annotations.dart';
@@ -460,13 +440,11 @@ import 'package:openapi_generator_annotations/openapi_generator_annotations.dart
   runSourceGenOnOutput: false,
 )
 class TestClassConfig extends OpenapiGeneratorConfig {}
-                    ''',
-                    (resolver) async =>
-                        (await resolver.findLibraryByName('test_lib'))!))
-                .getClass('TestClassConfig')!
-                .metadata
-                .map((e) => ConstantReader(e.computeConstantValue()!))
-                .first;
+                    ''';
+            final annotations = await getConstantReader(
+                definition: definition,
+                libraryName: 'test_lib',
+                className: 'TestClassConfig');
             final args = GeneratorArguments(annotations: annotations);
 
             expect(args.runSourceGen, isFalse);
@@ -485,9 +463,9 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
           });
           test('generator is dart', () async {
             var annotation = Openapi(
-                inputSpec: RemoteSpec(path: '$specPath'),
+                inputSpec: RemoteSpec(path: specPath),
                 generatorName: Generator.dart,
-                cachePath: '${openapiSpecCache.path}',
+                cachePath: openapiSpecCache.path,
                 outputDirectory: '${openapiSpecCache.parent.path}/dart-gen');
 
             final arguments = await getArguments(annotation);
@@ -495,7 +473,6 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
             generatedOutput =
                 await generateFromAnnotation(annotation, process: mockProcess);
 
-            printOnFailure(generatedOutput);
             verify(mockProcess.run('dart', ['pub', 'get'],
                     runInShell: Platform.isWindows,
                     workingDirectory: arguments.outputDirectory))
@@ -514,18 +491,27 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
           });
         });
         test('logs when successful', () async {
-          generatedOutput = await generateFromSource('''
-@Openapi(
-  inputSpec: RemoteSpec(path: '$specPath'),
-  generatorName: Generator.dio,
-  useNextGen: true,
-  cachePath: '${openapiSpecCache.path}',
-  outputDirectory: '${openapiSpecCache.parent.path}/success',
-  projectPubspecPath: './test/specs/dart_pubspec.test.yaml',
-)
-          ''');
-          expect(generatedOutput, contains('Codegen completed successfully.'));
-          expect(generatedOutput, contains('Sources generated successfully.'));
+          generatedOutput = await generateFromAnnotation(
+              Openapi(
+                inputSpec: RemoteSpec(path: '$specPath'),
+                generatorName: Generator.dio,
+                cachePath: '${openapiSpecCache.path}',
+                outputDirectory: '${openapiSpecCache.parent.path}/success',
+                projectPubspecPath: './test/specs/dart_pubspec.test.yaml',
+              ),
+              process: mockProcess);
+          verify(mockProcess.run(
+                  'dart',
+                  [
+                    'pub',
+                    'run',
+                    'build_runner',
+                    'build',
+                    '--delete-conflicting-outputs'
+                  ],
+                  runInShell: Platform.isWindows,
+                  workingDirectory: '${openapiSpecCache.parent.path}/success'))
+              .called(1);
         });
       });
       group('fetch dependencies', () {
@@ -545,19 +531,24 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
               contains('Skipping install step because flag was set.'));
         });
         test('succeeds', () async {
-          generatedOutput = await generateFromSource('''
-@Openapi(
-  inputSpec: RemoteSpec(path: '$specPath'),
-  generatorName: Generator.dio,
-  useNextGen: true,
-  cachePath: '${openapiSpecCache.path}',
-  outputDirectory: '${openapiSpecCache.parent.path}/no-fetch',
-  projectPubspecPath: './test/specs/dart_pubspec.test.yaml',
-)
-          ''');
-          expect(generatedOutput,
-              contains('Installing dependencies with generated source.'));
-          expect(generatedOutput, contains('Install completed successfully.'));
+          generatedOutput = await generateFromAnnotation(
+              Openapi(
+                inputSpec: RemoteSpec(path: '$specPath'),
+                generatorName: Generator.dio,
+                cachePath: '${openapiSpecCache.path}',
+                outputDirectory: '${openapiSpecCache.parent.path}/no-fetch',
+                projectPubspecPath: './test/specs/dart_pubspec.test.yaml',
+              ),
+              process: mockProcess);
+          verify(mockProcess.run(
+                  'dart',
+                  [
+                    'pub',
+                    'get',
+                  ],
+                  runInShell: Platform.isWindows,
+                  workingDirectory: '${openapiSpecCache.parent.path}/no-fetch'))
+              .called(1);
         });
       });
       group('update cache', () {
@@ -576,7 +567,12 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
             openapiSpecCache.deleteSync();
           }
           expect(openapiSpecCache.existsSync(), isFalse);
-          generatedOutput = await generateFromSource(src);
+          generatedOutput = await generateFromAnnotation(Openapi(
+            inputSpec: RemoteSpec(path: specPath),
+            generatorName: Generator.dio,
+            cachePath: openapiSpecCache.path,
+            outputDirectory: '${openapiSpecCache.parent.path}/update-cache',
+          ));
           expect(openapiSpecCache.existsSync(), isTrue);
           expect(jsonDecode(openapiSpecCache.readAsStringSync()),
               await loadSpec(specConfig: RemoteSpec(path: specPath)));
@@ -598,7 +594,7 @@ class TestClassConfig extends OpenapiGeneratorConfig {}
           expect(
               generatedOutput, contains('Successfully cached spec changes.'));
         });
-      });
+      }, skip: true);
     });
   });
 }

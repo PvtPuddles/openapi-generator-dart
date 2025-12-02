@@ -144,21 +144,9 @@ class Openapi {
   /// Note: Setting this to `true` can lead to merge conflicts in team environments,
   /// as each developer may end up modifying the annotated file.
   ///
-  /// This setting is different from [skipIfSpecIsUnchanged], which only regenerates
-  /// the client SDK if it detects changes in the OpenAPI specification.
   ///
   /// Defaults to [false].
   final bool forceAlwaysRun;
-
-  /// Skips execution if the OpenAPI specification file is different from a cached copy.
-  ///
-  /// For remote specifications, the file will be downloaded and cached locally.
-  /// The cache is then compared to the remote file to detect any changes.
-  ///
-  /// If set to false, a cached copy of the OpenAPI specification file is not kept.
-  ///
-  /// Defaults to [true].
-  final bool skipIfSpecIsUnchanged;
 
   const Openapi({
     this.additionalProperties,
@@ -181,8 +169,7 @@ class Openapi {
     this.cachePath,
     this.projectPubspecPath,
     this.debugLogging = false,
-    this.forceAlwaysRun = true,
-    this.skipIfSpecIsUnchanged = true,
+    this.forceAlwaysRun = false,
   });
 
   @override
@@ -244,7 +231,6 @@ class Openapi {
     }
     buffer.writeln('  debugLogging: $debugLogging,');
     buffer.writeln('  forceAlwaysRun: $forceAlwaysRun,');
-    buffer.writeln('  skipIfSpecIsUnchanged: $skipIfSpecIsUnchanged,');
     buffer.write(')');
     return buffer.toString();
   }
@@ -257,6 +243,10 @@ String _formatMap(Map<String, String> map) {
       map.entries.map((entry) => "'${entry.key}':'${entry.value}'"), ', ');
   buffer.write('}');
   return buffer.toString();
+}
+
+class OpenApiTest {
+  const OpenApiTest();
 }
 
 /// Provides the input spec file to be used.
@@ -355,8 +345,8 @@ class AWSRemoteSpecHeaderDelegate extends RemoteSpecHeaderDelegate {
 
   const AWSRemoteSpecHeaderDelegate({
     required this.bucket,
-    this.secretAccessKey = null,
-    this.accessKeyId = null,
+    this.secretAccessKey,
+    this.accessKeyId,
   }) : super();
 
   AWSRemoteSpecHeaderDelegate.fromMap(Map<String, dynamic> map)
@@ -373,7 +363,7 @@ class AWSRemoteSpecHeaderDelegate extends RemoteSpecHeaderDelegate {
     String? path,
   }) {
     if (!(path != null && path.isNotEmpty)) {
-      throw new AssertionError('The path to the OAS spec should be provided');
+      throw AssertionError('The path to the OAS spec should be provided');
     }
 
     // Use the provided credentials to the constructor, if any, otherwise
@@ -383,7 +373,7 @@ class AWSRemoteSpecHeaderDelegate extends RemoteSpecHeaderDelegate {
         secretAccessKey ?? Platform.environment['AWS_SECRET_ACCESS_KEY'];
     if ((accessKey == null || accessKey.isEmpty) ||
         (secretKey == null || secretKey.isEmpty)) {
-      throw new AssertionError(
+      throw AssertionError(
           'AWS_SECRET_KEY_ID & AWS_SECRET_ACCESS_KEY should be defined and not empty or they should be provided in the delegate constructor.');
     }
 
@@ -458,6 +448,9 @@ class AdditionalProperties {
   /// Version in generated pubspec
   final String? pubVersion;
 
+  /// Publish to in generated pubspec
+  final String? pubPublishTo;
+
   /// Sort model properties to place required parameters before optional parameters.
   final bool? sortModelPropertiesByRequiredFlag;
 
@@ -509,6 +502,7 @@ class AdditionalProperties {
     this.legacyDiscriminatorBehavior = true,
     this.pubName,
     this.pubVersion,
+    this.pubPublishTo,
     this.sortModelPropertiesByRequiredFlag = true,
     this.sortParamsByRequiredFlag = true,
     this.sourceFolder,
@@ -530,6 +524,7 @@ class AdditionalProperties {
           pubHomepage: map['pubHomepage'],
           pubName: map['pubName'],
           pubVersion: map['pubVersion'],
+          pubPublishTo: map['pubPublishTo'],
           legacyDiscriminatorBehavior:
               map['legacyDiscriminatorBehavior'] ?? true,
           sortModelPropertiesByRequiredFlag:
@@ -551,6 +546,7 @@ class AdditionalProperties {
         if (pubHomepage != null) 'pubHomepage': pubHomepage,
         if (pubName != null) 'pubName': pubName,
         if (pubVersion != null) 'pubVersion': pubVersion,
+        if (pubPublishTo != null) 'pubPublishTo': pubPublishTo,
         'legacyDiscriminatorBehavior': legacyDiscriminatorBehavior,
         'sortModelPropertiesByRequiredFlag': sortModelPropertiesByRequiredFlag,
         'sortParamsByRequiredFlag': sortParamsByRequiredFlag,
@@ -562,30 +558,39 @@ class AdditionalProperties {
   String toString() {
     final buffer = StringBuffer();
     buffer.writeln('AdditionalProperties(');
-    if (allowUnicodeIdentifiers != null)
+    if (allowUnicodeIdentifiers != null) {
       buffer.writeln('  allowUnicodeIdentifiers: $allowUnicodeIdentifiers,');
-    if (ensureUniqueParams != null)
+    }
+    if (ensureUniqueParams != null) {
       buffer.writeln('  ensureUniqueParams: $ensureUniqueParams,');
-    if (prependFormOrBodyParameters != null)
+    }
+    if (prependFormOrBodyParameters != null) {
       buffer.writeln(
           '  prependFormOrBodyParameters: $prependFormOrBodyParameters,');
+    }
     if (pubAuthor != null) buffer.writeln('  pubAuthor: "$pubAuthor",');
-    if (pubAuthorEmail != null)
+    if (pubAuthorEmail != null) {
       buffer.writeln('  pubAuthorEmail: "$pubAuthorEmail",');
-    if (pubDescription != null)
+    }
+    if (pubDescription != null) {
       buffer.writeln('  pubDescription: "$pubDescription",');
+    }
     if (pubHomepage != null) buffer.writeln('  pubHomepage: "$pubHomepage",');
     if (pubName != null) buffer.writeln('  pubName: "$pubName",');
     if (pubVersion != null) buffer.writeln('  pubVersion: "$pubVersion",');
-    if (sortModelPropertiesByRequiredFlag != null)
+    if (sortModelPropertiesByRequiredFlag != null) {
       buffer.writeln(
           '  sortModelPropertiesByRequiredFlag: $sortModelPropertiesByRequiredFlag,');
-    if (sortParamsByRequiredFlag != null)
+    }
+    if (sortParamsByRequiredFlag != null) {
       buffer.writeln('  sortParamsByRequiredFlag: $sortParamsByRequiredFlag,');
-    if (sourceFolder != null)
+    }
+    if (sourceFolder != null) {
       buffer.writeln('  sourceFolder: "$sourceFolder",');
-    if (useEnumExtension != null)
+    }
+    if (useEnumExtension != null) {
       buffer.writeln('  useEnumExtension: $useEnumExtension,');
+    }
     buffer.writeln('  enumUnknownDefaultCase: $enumUnknownDefaultCase,');
     buffer.writeln('  wrapper: $wrapper,');
     buffer
@@ -643,10 +648,12 @@ class InlineSchemaOptions {
   String toString() {
     final buffer = StringBuffer();
     buffer.writeln('InlineSchemaOptions(');
-    if (arrayItemSuffix != null)
+    if (arrayItemSuffix != null) {
       buffer.writeln('  arrayItemSuffix: "$arrayItemSuffix",');
-    if (mapItemSuffix != null)
+    }
+    if (mapItemSuffix != null) {
       buffer.writeln('  mapItemSuffix: "$mapItemSuffix",');
+    }
     buffer.writeln('  skipSchemaReuse: $skipSchemaReuse,');
     buffer
         .writeln('  refactorAllofInlineSchemas: $refactorAllofInlineSchemas,');
@@ -677,6 +684,7 @@ class DioProperties extends AdditionalProperties {
       String? pubHomepage,
       String? pubName,
       String? pubVersion,
+      String? pubPublishTo,
       bool sortModelPropertiesByRequiredFlag = true,
       bool sortParamsByRequiredFlag = true,
       bool useEnumExtension = true,
@@ -693,6 +701,7 @@ class DioProperties extends AdditionalProperties {
             pubHomepage: pubHomepage,
             pubName: pubName,
             pubVersion: pubVersion,
+            pubPublishTo: pubPublishTo,
             sortModelPropertiesByRequiredFlag:
                 sortModelPropertiesByRequiredFlag,
             sortParamsByRequiredFlag: sortParamsByRequiredFlag,
@@ -708,6 +717,7 @@ class DioProperties extends AdditionalProperties {
             map['serializationLibrary']),
         super.fromMap(map);
 
+  @override
   Map<String, dynamic> toMap() => Map.from(super.toMap())
     ..addAll({
       if (dateLibrary != null)
@@ -727,10 +737,12 @@ class DioProperties extends AdditionalProperties {
         .replaceAll(RegExp(r'AdditionalProperties\(|\)$'), '')
         .replaceAll('\n', '\n  ')); // Indent base class fields
     if (dateLibrary != null) buffer.writeln('  dateLibrary: $dateLibrary,');
-    if (nullableFields != null)
+    if (nullableFields != null) {
       buffer.writeln('  nullableFields: $nullableFields,');
-    if (serializationLibrary != null)
+    }
+    if (serializationLibrary != null) {
       buffer.writeln('  serializationLibrary: $serializationLibrary,');
+    }
     buffer.write(')');
     return buffer.toString();
   }
@@ -767,6 +779,7 @@ class DioAltProperties extends AdditionalProperties {
       String? pubHomepage,
       String? pubName,
       String? pubVersion,
+      String? pubPublishTo,
       bool sortModelPropertiesByRequiredFlag = true,
       bool sortParamsByRequiredFlag = true,
       bool useEnumExtension = true,
@@ -783,6 +796,7 @@ class DioAltProperties extends AdditionalProperties {
             pubHomepage: pubHomepage,
             pubName: pubName,
             pubVersion: pubVersion,
+            pubPublishTo: pubPublishTo,
             sortModelPropertiesByRequiredFlag:
                 sortModelPropertiesByRequiredFlag,
             sortParamsByRequiredFlag: sortParamsByRequiredFlag,
@@ -797,6 +811,7 @@ class DioAltProperties extends AdditionalProperties {
         pubspecDevDependencies = map['pubspecDevDependencies'],
         super.fromMap(map);
 
+  @override
   Map<String, dynamic> toMap() => Map.from(super.toMap())
     ..addAll({
       if (listAnyOf != null) 'listAnyOf': listAnyOf,
@@ -819,10 +834,12 @@ class DioAltProperties extends AdditionalProperties {
 
     // Add DioAltProperties-specific fields
     if (listAnyOf != null) buffer.writeln('  listAnyOf: $listAnyOf,');
-    if (pubspecDependencies != null)
+    if (pubspecDependencies != null) {
       buffer.writeln('  pubspecDependencies: "$pubspecDependencies",');
-    if (pubspecDevDependencies != null)
+    }
+    if (pubspecDevDependencies != null) {
       buffer.writeln('  pubspecDevDependencies: "$pubspecDevDependencies",');
+    }
 
     buffer.write(')');
     return buffer.toString();

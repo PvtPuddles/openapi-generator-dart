@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:openapi_generator/src/models/generator_arguments.dart';
 import 'package:openapi_generator/src/process_runner.dart';
 import 'package:openapi_generator_annotations/openapi_generator_annotations.dart';
 import 'package:path/path.dart' as path;
@@ -44,31 +45,36 @@ void main() {
           () async {
         var inputSpecFile =
             File('$parentFolder/github_issue_#$issueNumber.json');
-        var generatedOutput = await generateFromAnnotation(
+        var outputDir = Directory('./test/specs/issue/$issueNumber/output');
+        await generateFromAnnotation(
           Openapi(
-              additionalProperties: AdditionalProperties(
-                  pubName: 'tictactoe_api',
-                  pubAuthor: 'Jon Doe',
-                  pubAuthorEmail: 'me@example.com'),
-              inputSpec: InputSpec(path: inputSpecFile.path),
-              generatorName: Generator.dart,
-              cleanSubOutputDirectory: [
-                './test/specs/issue/$issueNumber/output'
-              ],
-              cachePath: './test/specs/issue/$issueNumber/output/cache.json',
-              outputDirectory: './test/specs/issue/$issueNumber/output'),
+            additionalProperties: AdditionalProperties(
+                pubName: 'tictactoe_api',
+                pubAuthor: 'Jon Doe',
+                pubAuthorEmail: 'me@example.com'),
+            inputSpec: InputSpec(path: inputSpecFile.path),
+            generatorName: Generator.dart,
+            cleanSubOutputDirectory: ['./test/specs/issue/$issueNumber/output'],
+            cachePath: './test/specs/issue/$issueNumber/output/cache.json',
+            outputDirectory: outputDir.path,
+          ),
           process: processRunner,
         );
 
-        expectSourceGenSkipped(generatedOutput);
-        expectCodeFormattedSuccessfully(generatedOutput);
+        expectSourceGenSkipped(outputDir);
+
+        expectCodeFormattedSuccessfully(outputDir);
+
         var analyzeResult = await Process.run(
           'dart',
           ['analyze'],
           workingDirectory: workingDirectory,
         );
+        printOnFailure(
+            'Analysis result: ${analyzeResult.stdout}\n\n${analyzeResult.stderr}');
         expect(analyzeResult.exitCode, 0,
             reason: '${analyzeResult.stdout}\n\n${analyzeResult.stderr}');
+
         cleanup(workingDirectory);
       });
     });
@@ -92,16 +98,19 @@ void main() {
         var inputSpecFile =
             File('$parentFolder/github_issue_#$issueNumber.json');
 
-        var generatedOutput = await generateFromPath(
+        await generateFromPath(
           annotatedFile.path,
           openapiSpecFilePath: inputSpecFile.path,
           process: processRunner,
           preProcessor: (annotatedFileContent) =>
               annotatedFileContent.replaceAll('{{issueNumber}}', issueNumber),
         );
-
-        expectSourceGenSkipped(generatedOutput);
-        expectCodeFormattedSuccessfully(generatedOutput);
+        var annotation = await getConstantReaderForPath(file: annotatedFile);
+        var outputDir = Directory(GeneratorArguments(annotations: annotation)
+            .outputDirectory!
+            .replaceAll('{{issueNumber}}', issueNumber));
+        expectSourceGenSkipped(outputDir);
+        expectCodeFormattedSuccessfully(outputDir);
 
         var analyzeResult = await Process.run(
           'dart',
@@ -122,7 +131,7 @@ void main() {
           var inputSpecFile =
               File('$parentFolder/github_issue_#$issueNumber.json');
 
-          var generatedOutput = await generateFromPath(
+          await generateFromPath(
             annotatedFile.path,
             process: processRunner,
             openapiSpecFilePath: inputSpecFile.path,
@@ -130,8 +139,13 @@ void main() {
                 annotatedFileContent.replaceAll('{{issueNumber}}', issueNumber),
           );
 
-          expectSourceGenRun(generatedOutput);
-          expectCodeFormattedSuccessfully(generatedOutput);
+          var annotation = await getConstantReaderForPath(file: annotatedFile);
+          var outputDir = Directory(GeneratorArguments(annotations: annotation)
+              .outputDirectory!
+              .replaceAll('{{issueNumber}}', issueNumber));
+
+          expectSourceGenRun(outputDir);
+          expectCodeFormattedSuccessfully(outputDir);
           var workingDirectory = path.join(parentFolder, 'output');
           var analyzeResult = await Process.run(
             'dart',
@@ -164,7 +178,7 @@ void main() {
         var inputSpecFile =
             File('$parentFolder/github_issue_#$issueNumber.json');
 
-        var generatedOutput = await generateFromPath(
+        await generateFromPath(
           annotatedFile.path,
           process: processRunner,
           openapiSpecFilePath: inputSpecFile.path,
@@ -172,8 +186,9 @@ void main() {
               annotatedFileContent.replaceAll('{{issueNumber}}', issueNumber),
         );
 
-        expectSourceGenSkipped(generatedOutput);
-        expectCodeFormattedSuccessfully(generatedOutput);
+        var outputDir = Directory(workingDirectory);
+        expectSourceGenSkipped(outputDir);
+        expectCodeFormattedSuccessfully(outputDir);
         var analyzeResult = await Process.run(
           'dart',
           ['analyze', '--fatal-warnings'],
@@ -193,7 +208,7 @@ void main() {
           var inputSpecFile =
               File('$parentFolder/github_issue_#$issueNumber.json');
 
-          var generatedOutput = await generateFromPath(
+          await generateFromPath(
             annotatedFile.path,
             process: processRunner,
             openapiSpecFilePath: inputSpecFile.path,
@@ -201,8 +216,13 @@ void main() {
                 annotatedFileContent.replaceAll('{{issueNumber}}', issueNumber),
           );
 
-          expectSourceGenRun(generatedOutput);
-          expectCodeFormattedSuccessfully(generatedOutput);
+          var annotation = await getConstantReaderForPath(file: annotatedFile);
+          var outputDir = Directory(GeneratorArguments(annotations: annotation)
+              .outputDirectory!
+              .replaceAll('{{issueNumber}}', issueNumber));
+
+          expectSourceGenRun(outputDir);
+          expectCodeFormattedSuccessfully(outputDir);
           var workingDirectory = path.join(parentFolder, 'output');
           await Process.run(
             'dart',
@@ -238,11 +258,16 @@ void main() {
         // var annotatedFileContents = annotatedFile.readAsStringSync();
         var inputSpecFile = File('$parentFolder/github_issue_#135.json');
 
-        var generatedOutput = await generateFromPath(annotatedFile.path,
+        await generateFromPath(annotatedFile.path,
             process: processRunner, openapiSpecFilePath: inputSpecFile.path);
 
-        expectSourceGenSkipped(generatedOutput);
-        expectCodeFormattedSuccessfully(generatedOutput);
+        var annotation = await getConstantReaderForPath(file: annotatedFile);
+
+        var outputDir = Directory(
+            GeneratorArguments(annotations: annotation).outputDirectory!);
+
+        expectSourceGenSkipped(outputDir);
+        expectCodeFormattedSuccessfully(outputDir);
         var analyzeResult = await Process.run(
           'dart',
           ['analyze', '--no-fatal-warnings'],
@@ -260,10 +285,15 @@ void main() {
           // var annotatedFileContents = annotatedFile.readAsStringSync();
           var inputSpecFile = File('$parentFolder/github_issue_#135.json');
 
-          var generatedOutput = await generateFromPath(annotatedFile.path,
+          await generateFromPath(annotatedFile.path,
               process: processRunner, openapiSpecFilePath: inputSpecFile.path);
 
-          expectCodeFormattedSuccessfully(generatedOutput);
+          var annotation = await getConstantReaderForPath(file: annotatedFile);
+          var outputDir = Directory(
+              GeneratorArguments(annotations: annotation).outputDirectory!);
+
+          expectSourceGenRun(outputDir);
+          expectCodeFormattedSuccessfully(outputDir);
           var workingDirectory = path.join(parentFolder, 'output');
           var analyzeResult = await Process.run(
             'dart',
@@ -325,7 +355,8 @@ void main() {
         },
       );
       test('[dio] Test that generation does not fail', () async {
-        var generatedOutput = await generateFromAnnotation(
+        var outputDir = Directory('./test/specs/issue/$issueNumber/output');
+        await generateFromAnnotation(
           Openapi(
               additionalProperties: DioProperties(
                   pubName: 'petstore_api', pubAuthor: 'Johnny_dep'),
@@ -334,16 +365,15 @@ void main() {
               typeMappings: {'Pet': 'ExamplePet'},
               generatorName: Generator.dio,
               runSourceGenOnOutput: true,
-              skipIfSpecIsUnchanged: false,
               cleanSubOutputDirectory: [
                 './test/specs/issue/$issueNumber/output'
               ],
-              outputDirectory: './test/specs/issue/$issueNumber/output'),
+              outputDirectory: outputDir.path),
           process: processRunner,
         );
 
-        expectSourceGenRun(generatedOutput);
-        expectCodeFormattedSuccessfully(generatedOutput);
+        expectSourceGenRun(outputDir);
+        expectCodeFormattedSuccessfully(outputDir);
         var analyzeResult = await Process.run(
           'dart',
           ['analyze', '--no-fatal-warnings'],
@@ -366,7 +396,8 @@ void main() {
         },
       );
       test('[dio] Test that generation does not fail', () async {
-        var generatedOutput = await generateFromAnnotation(
+        var outputDir = Directory('./test/specs/issue/$issueNumber/output');
+        await generateFromAnnotation(
           Openapi(
               additionalProperties: DioAltProperties(
                 pubName: 'issue_api',
@@ -377,16 +408,17 @@ void main() {
               generatorName: Generator.dio,
               runSourceGenOnOutput: true,
               typeMappings: {'Pet': 'ExamplePet', 'Test': 'ExampleTest'},
-              skipIfSpecIsUnchanged: false,
               cleanSubOutputDirectory: [
                 './test/specs/issue/$issueNumber/output'
               ],
-              outputDirectory: './test/specs/issue/$issueNumber/output'),
+              outputDirectory: outputDir.path),
           process: processRunner,
         );
 
-        expectSourceGenRun(generatedOutput);
-        expectCodeFormattedSuccessfully(generatedOutput);
+        expectSourceGenRun(outputDir);
+        expectCodeFormattedSuccessfully(outputDir);
+        // check the output directory/lib/src/model for the generated files (.g.dart files)
+
         var analyzeResult = await Process.run(
           'dart',
           ['analyze', '--no-fatal-warnings'],
